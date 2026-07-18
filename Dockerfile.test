@@ -1,0 +1,16 @@
+# ckanext-datashare -- CKAN-load + behavioral-test harness.
+#
+# Installs the plugin into a real CKAN 2.10 dev image to (a) smoke-check that
+# DatasharePlugin instantiates with non-empty registries and (b) run the
+# behavioral pytest suite (policy matrix, grant table + membership joins).
+#
+# NOTE: the plugin source is COPYied (not bind-mounted) on purpose - bind
+# mounts fail under SELinux. See scripts/run-ckan-tests.sh for the driver.
+
+FROM ckan/ckan-dev:2.10
+
+USER root
+
+COPY . /plugin
+
+RUN pip install -e /plugin

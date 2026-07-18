@@ -1,0 +1,2 @@
+recursive-include ckanext/datashare/templates *.html
+include README.md
