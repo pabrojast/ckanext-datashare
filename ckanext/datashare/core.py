@@ -94,18 +94,25 @@ def _pkg_attr(pkg, dict_key, model_attr=None):
 # ---------------------------------------------------------------------------
 
 def _resolve_user_obj(user=None, context=None):
-    """Best-effort resolution of a User object from what callers have."""
+    """Best-effort resolution of a User object from what callers have.
+
+    Returns None for anonymous: CKAN 2.10 (flask-login) hands out a TRUTHY
+    AnonymousUser object, which must never be treated as a real user.
+    """
+    user_obj = None
     if user is not None and not isinstance(user, str):
-        return user
-    if context is not None:
-        user_obj = context.get('auth_user_obj')
-        if user_obj is not None:
-            return user_obj
-        user = user or context.get('user')
-    if isinstance(user, str) and user:
-        import ckan.model as model
-        return model.User.get(user)
-    return None
+        user_obj = user
+    elif context is not None and context.get('auth_user_obj') is not None:
+        user_obj = context['auth_user_obj']
+    else:
+        if context is not None:
+            user = user or context.get('user')
+        if isinstance(user, str) and user:
+            import ckan.model as model
+            user_obj = model.User.get(user)
+    if user_obj is not None and getattr(user_obj, 'is_anonymous', False):
+        return None
+    return user_obj
 
 
 def is_authorized(pkg, user_obj):

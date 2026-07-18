@@ -66,7 +66,10 @@ def get_dataset_labels(dataset_obj):
 
 def get_user_dataset_labels(user_obj):
     labels = [u'public']
-    if not user_obj:
+    # CKAN 2.10 (flask-login) passes a TRUTHY AnonymousUser object for
+    # anonymous requests - it must get the plain public labels, and its
+    # fake id must never reach the collaborator/org lookups below.
+    if not user_obj or getattr(user_obj, 'is_anonymous', False):
         return labels
 
     labels.append(u'creator-%s' % user_obj.id)
