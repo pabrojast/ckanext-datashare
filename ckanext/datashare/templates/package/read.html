@@ -1,0 +1,7 @@
+{% ckan_extends %}
+
+{# Prepend the access-level banner to the dataset page (no-op for public). #}
+{% block package_description %}
+  {% snippet 'package/snippets/datashare_banner.html', pkg=pkg %}
+  {{ super() }}
+{% endblock %}

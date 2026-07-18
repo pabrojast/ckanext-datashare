@@ -1,0 +1,92 @@
+{% extends 'package/edit_base.html' %}
+
+{% block subtitle %}{{ _('Shared with') }} {{ g.template_title_delimiter }} {{ h.dataset_display_name(pkg) }}{% endblock %}
+
+{% block primary_content_inner %}
+  <h1 class="page-heading">{{ _('Shared with') }}</h1>
+  <p class="text-muted">
+    {{ _('Grant entire organizations or initiatives access to this dataset. '
+         '"Can view" gives their members full read access (including restricted data); '
+         '"Can edit" additionally lets their admins and editors update the dataset.') }}
+  </p>
+
+  {% if grants %}
+    <table class="table table-striped table-bordered">
+      <thead>
+        <tr>
+          <th>{{ _('Organization / Initiative') }}</th>
+          <th>{{ _('Type') }}</th>
+          <th>{{ _('Permission') }}</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for grant in grants %}
+          <tr>
+            <td>{{ grant.grantee_title }}</td>
+            <td>
+              {% if grant.grantee_type == 'org' %}
+                <span class="label label-default">{{ _('Organization') }}</span>
+              {% else %}
+                <span class="label label-info">{{ _('Initiative') }}</span>
+              {% endif %}
+            </td>
+            <td>{{ _('Can edit') if grant.capacity == 'edit' else _('Can view') }}</td>
+            <td>
+              <form method="post" action="{{ h.url_for('datashare.shared', id=pkg.name) }}">
+                <input type="hidden" name="action" value="remove"/>
+                <input type="hidden" name="grantee" value="{{ grant.grantee_type }}|{{ grant.grantee_id }}"/>
+                <button class="btn btn-danger btn-xs" type="submit"
+                        title="{{ _('Remove sharing') }}">
+                  <i class="fa fa-times"></i> {{ _('Remove') }}
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">{{ _('This dataset has not been shared with any organization or initiative yet.') }}</p>
+  {% endif %}
+
+  <h2>{{ _('Share with an organization or initiative') }}</h2>
+  <form method="post" action="{{ h.url_for('datashare.shared', id=pkg.name) }}" class="form-inline">
+    <input type="hidden" name="action" value="add"/>
+    <div class="form-group">
+      <label for="datashare-grantee">{{ _('Entity') }}</label>
+      <select id="datashare-grantee" name="grantee" class="form-control" required>
+        <option value="">{{ _('Select...') }}</option>
+        <optgroup label="{{ _('Organizations') }}">
+          {% for org in orgs %}
+            <option value="org|{{ org.id }}">{{ org.display_name or org.title or org.name }}</option>
+          {% endfor %}
+        </optgroup>
+        <optgroup label="{{ _('Initiatives / Groups') }}">
+          {% for group in groups %}
+            <option value="group|{{ group.id }}">{{ group.display_name or group.title or group.name }}</option>
+          {% endfor %}
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="datashare-capacity">{{ _('Permission') }}</label>
+      <select id="datashare-capacity" name="capacity" class="form-control">
+        <option value="read">{{ _('Can view') }}</option>
+        <option value="edit">{{ _('Can edit') }}</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" type="submit">
+      <i class="fa fa-share-alt"></i> {{ _('Share') }}
+    </button>
+  </form>
+
+  {% if h.check_config_permission('allow_dataset_collaborators') %}
+    <hr/>
+    <p>
+      {{ _('To share with a specific person instead, use the') }}
+      <a href="{{ h.url_for(pkg.type ~ '.collaborators_read', id=pkg.name) }}">{{ _('Collaborators') }}</a>
+      {{ _('page.') }}
+    </p>
+  {% endif %}
+{% endblock %}

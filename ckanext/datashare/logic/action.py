@@ -119,6 +119,31 @@ def datashare_grant_list(context, data_dict):
     return results
 
 
+@tk.chained_action
+@tk.side_effect_free
+def resource_view_list(original_action, context, data_dict):
+    """Filter resource views for 'viewable' datasets.
+
+    Users who may preview but not download only get the configured whitelist
+    of view types (views that proxy or dump the raw file are excluded).
+    """
+    views = original_action(context, data_dict)
+    if not views:
+        return views
+    model = context['model']
+    resource = model.Resource.get((data_dict or {}).get('id', ''))
+    pkg = model.Package.get(resource.package_id) if resource else None
+    if pkg is None:
+        return views
+    access = core.get_access(pkg, context=context)
+    if access.can_download:
+        return views
+    if not access.can_view_resources:
+        return []
+    allowed = core.viewable_view_types()
+    return [v for v in views if v.get('view_type') in allowed]
+
+
 @tk.side_effect_free
 def datashare_access_check(context, data_dict):
     """What can the current user do with this dataset?
@@ -141,4 +166,5 @@ def get_actions():
         'datashare_grant_delete': datashare_grant_delete,
         'datashare_grant_list': datashare_grant_list,
         'datashare_access_check': datashare_access_check,
+        'resource_view_list': resource_view_list,
     }

@@ -1,0 +1,8 @@
+{% ckan_extends %}
+
+{% block content_primary_nav %}
+  {{ super() }}
+  {% if h.check_access('datashare_grant_manage', {'package_id': pkg.id}) %}
+    {{ h.build_nav_icon('datashare.shared', _('Shared with'), id=pkg.name, icon='share-alt') }}
+  {% endif %}
+{% endblock %}

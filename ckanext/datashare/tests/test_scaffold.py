@@ -32,8 +32,26 @@ def test_registries_non_empty(plugin):
 def test_expected_actions_registered(plugin):
     actions = plugin.get_actions()
     for name in ('datashare_grant_create', 'datashare_grant_delete',
-                 'datashare_grant_list', 'datashare_access_check'):
+                 'datashare_grant_list', 'datashare_access_check',
+                 'resource_view_list'):
         assert name in actions
+    # resource_view_list wraps core, it must be chained
+    assert getattr(actions['resource_view_list'], 'chained_action', False)
+
+
+def test_download_blueprint_rules(plugin):
+    blueprints = plugin.get_blueprint()
+    assert blueprints
+    # Register on a throwaway app to enumerate the resulting url map.
+    import flask
+    app = flask.Flask(__name__)
+    for bp in blueprints:
+        app.register_blueprint(bp)
+    rules = sorted(str(r) for r in app.url_map.iter_rules()
+                   if r.endpoint != 'static')
+    assert '/dataset/<id>/resource/<resource_id>/download' in rules
+    assert '/dataset/<id>/resource/<resource_id>/download/<filename>' in rules
+    assert '/dataset/<id>/shared' in rules
 
 
 def test_expected_auth_functions_registered(plugin):

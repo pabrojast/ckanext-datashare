@@ -1,0 +1,21 @@
+{% ckan_extends %}
+
+{# Replace the download actions when the current user may not download:
+   keeps Manage for editors, swaps the Download button (and the datastore
+   dump dropdown) for a lock notice. The server-side gate in views.py is the
+   real enforcement - this is UI honesty. #}
+{% block resource_actions_inner %}
+  {% if h.datashare_can_download(pkg, res) %}
+    {{ super() }}
+  {% else %}
+    {% if h.check_access('package_update', {'id': pkg.id}) %}
+      <li>{% link_for _('Manage'), named_route=pkg.type ~ '_resource.edit', id=pkg.name, resource_id=res.id, class_='btn btn-default', icon='wrench' %}</li>
+    {% endif %}
+    <li>
+      <span class="btn btn-default disabled datashare-download-locked"
+            title="{{ _('Downloading is not permitted by this dataset\'s data sharing level') }}">
+        <i class="fa fa-lock"></i> {{ _('Download restricted') }}
+      </span>
+    </li>
+  {% endif %}
+{% endblock %}
