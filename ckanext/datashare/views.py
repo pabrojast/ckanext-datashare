@@ -7,11 +7,13 @@ Registers the SAME two url rules that serve resource downloads on IHP-WINS
 then delegates to the real download implementation (cloudstorage when
 installed, else core).
 
-PLUGIN ORDER MATTERS: for identical rules, the blueprint of the plugin
-listed FIRST in ``ckan.plugins`` wins, so ``datashare`` must appear BEFORE
-``cloudstorage`` (extension blueprints override core routes). Verify after
-deploy with an anonymous curl against both URL shapes on a 'viewable'
-dataset - both must return 403.
+PLUGIN ORDER MATTERS: PluginImplementations iterates plugins LIFO, so for
+identical rules the blueprint of the plugin listed LAST in ``ckan.plugins``
+wins the tie (verified empirically on dev 2026-07-19: with datashare before
+cloudstorage, cloudstorage served the /download/<filename> rule). Therefore
+``datashare`` must appear AFTER ``cloudstorage``. Verify after deploy with
+an anonymous curl against both URL shapes on a 'viewable' dataset - both
+must return 403.
 """
 import logging
 

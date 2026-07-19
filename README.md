@@ -57,8 +57,9 @@ ckanext.datashare.viewable_allowed_view_types = pdf_view image_view text_view vi
 ## Install (IHP-WINS)
 
 1. Dockerfile: `pip install -e git+https://github.com/pabrojast/ckanext-datashare#egg=ckanext-datashare`
-2. `production.ini`: add `datashare` to `ckan.plugins` **before `cloudstorage`**
-   (blueprint precedence for the download gate).
+2. `production.ini`: add `datashare` to `ckan.plugins` **after `cloudstorage`**
+   (blueprint ties resolve LIFO — the later plugin wins; datashare must win
+   the `/download/<filename>` rule for the download gate to run).
 3. `ckan search-index rebuild` after first deploy (labels must reach Solr).
 
 ## Tests

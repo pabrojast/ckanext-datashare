@@ -96,23 +96,23 @@ def _pkg_attr(pkg, dict_key, model_attr=None):
 def _resolve_user_obj(user=None, context=None):
     """Best-effort resolution of a User object from what callers have.
 
-    Returns None for anonymous: CKAN 2.10 (flask-login) hands out a TRUTHY
-    AnonymousUser object, which must never be treated as a real user.
+    Anonymous comes in many disguises in CKAN 2.10 and every one of them
+    must resolve to None: ``None``, a truthy flask-login AnonymousUser
+    (``is_anonymous``), and the EMPTY STRING that ``g.userobj`` holds for
+    anonymous requests (ckan/views/__init__.py sets ``g.userobj = ''``).
+    A non-empty string is treated as a username and looked up.
     """
-    user_obj = None
-    if user is not None and not isinstance(user, str):
-        user_obj = user
-    elif context is not None and context.get('auth_user_obj') is not None:
-        user_obj = context['auth_user_obj']
-    else:
-        if context is not None:
-            user = user or context.get('user')
-        if isinstance(user, str) and user:
-            import ckan.model as model
-            user_obj = model.User.get(user)
-    if user_obj is not None and getattr(user_obj, 'is_anonymous', False):
+    candidate = user
+    if candidate is None and context is not None:
+        candidate = context.get('auth_user_obj') or context.get('user')
+    if isinstance(candidate, str):
+        if not candidate:
+            return None
+        import ckan.model as model
+        candidate = model.User.get(candidate)
+    if candidate is not None and getattr(candidate, 'is_anonymous', False):
         return None
-    return user_obj
+    return candidate
 
 
 def is_authorized(pkg, user_obj):

@@ -42,3 +42,13 @@ def test_resolve_user_obj_normalizes_anonymous_to_none():
     assert core._resolve_user_obj(user=anon) is None
     assert core._resolve_user_obj(context={'auth_user_obj': anon}) is None
     assert core._resolve_user_obj(user=None, context={}) is None
+
+
+def test_resolve_user_obj_empty_string_userobj_is_anonymous():
+    """ckan/views/__init__.py sets g.userobj = '' for anonymous requests;
+    that empty string reaches auth contexts and must resolve to None
+    (regression: '' has no .name and crashed users_role_for_group_or_org)."""
+    assert core._resolve_user_obj(context={'auth_user_obj': ''}) is None
+    assert core._resolve_user_obj(context={'auth_user_obj': '',
+                                           'user': ''}) is None
+    assert core._resolve_user_obj(user='') is None
