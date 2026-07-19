@@ -121,6 +121,31 @@ def datashare_access_check(context, data_dict):
     return {'success': True}
 
 
+def _logged_in(context):
+    if context.get('auth_user_obj') or context.get('user'):
+        return {'success': True}
+    return {'success': False, 'msg': tk._('You must be logged in')}
+
+
+def datashare_access_request_create(context, data_dict):
+    return _logged_in(context)
+
+
+def datashare_access_request_list(context, data_dict):
+    # The action scopes results to orgs the user manages (empty otherwise).
+    return _logged_in(context)
+
+
+def datashare_access_request_count(context, data_dict):
+    return _logged_in(context)
+
+
+def datashare_access_request_process(context, data_dict):
+    # Fine-grained check happens in the action (package_update on the
+    # request's dataset); this gate just requires authentication.
+    return _logged_in(context)
+
+
 def get_auth_functions():
     return {
         'resource_show': resource_show,
@@ -128,4 +153,8 @@ def get_auth_functions():
         'datashare_resource_download': datashare_resource_download,
         'datashare_grant_manage': datashare_grant_manage,
         'datashare_access_check': datashare_access_check,
+        'datashare_access_request_create': datashare_access_request_create,
+        'datashare_access_request_list': datashare_access_request_list,
+        'datashare_access_request_count': datashare_access_request_count,
+        'datashare_access_request_process': datashare_access_request_process,
     }

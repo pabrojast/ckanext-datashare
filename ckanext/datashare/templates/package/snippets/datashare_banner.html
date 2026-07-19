@@ -39,5 +39,23 @@
       <strong>{{ _('Restricted access dataset.') }}</strong>
       {{ _('Data access is limited for this dataset.') }}
     {% endif %}
+
+    {% if h.datashare_show_request_access(pkg) %}
+      {% set pending = h.datashare_my_pending_request(pkg) %}
+      <div class="datashare-request-access" style="margin-top:10px">
+        {% if pending %}
+          <em><i class="fa fa-clock-o"></i>
+            {{ _('Your access request is pending review by the data provider.') }}</em>
+        {% else %}
+          <form method="post" action="{{ h.url_for('datashare.request_access', id=pkg.name) }}" class="form-inline">
+            <input type="text" name="message" class="form-control input-sm"
+                   placeholder="{{ _('Message to the data provider (optional)') }}" style="max-width:280px"/>
+            <button class="btn btn-primary btn-sm" type="submit">
+              <i class="fa fa-key"></i> {{ _('Request access') }}
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    {% endif %}
   </div>
 {% endif %}

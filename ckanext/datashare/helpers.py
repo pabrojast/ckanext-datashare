@@ -85,6 +85,43 @@ def datashare_can_download(pkg, res=None):
     return bool(access and access['can_download'])
 
 
+def datashare_pending_access_count():
+    """Pending access requests the current user may review (approvals bell)."""
+    user = _current_user_obj()
+    if not user or getattr(user, 'is_anonymous', False):
+        return 0
+    try:
+        return tk.get_action('datashare_access_request_count')(
+            {'user': user.name, 'auth_user_obj': user}, {})
+    except Exception:
+        log.exception("datashare: pending access count failed")
+        return 0
+
+
+def datashare_my_pending_request(pkg):
+    """The current user's pending access request on this dataset, or None."""
+    user = _current_user_obj()
+    if not user or not pkg or getattr(user, 'is_anonymous', False):
+        return None
+    try:
+        from ckanext.datashare import db
+        pkg_id = pkg.get('id') if isinstance(pkg, dict) else pkg.id
+        return db.request_dictize(db.pending_request_for(pkg_id, user.id))
+    except Exception:
+        log.exception("datashare: pending request lookup failed")
+        return None
+
+
+def datashare_show_request_access(pkg):
+    """Should the 'Request access' CTA appear for the current user?"""
+    user = _current_user_obj()
+    if not user or getattr(user, 'is_anonymous', False):
+        return False
+    access = datashare_access(pkg)
+    return bool(access and not access['can_download']
+                and access['level'] != core.LEVEL_CONFIDENTIAL)
+
+
 def get_helpers():
     return {
         'datashare_access_level_choices': datashare_access_level_choices,
@@ -92,4 +129,7 @@ def get_helpers():
         'datashare_access': datashare_access,
         'datashare_can_view_resources': datashare_can_view_resources,
         'datashare_can_download': datashare_can_download,
+        'datashare_pending_access_count': datashare_pending_access_count,
+        'datashare_my_pending_request': datashare_my_pending_request,
+        'datashare_show_request_access': datashare_show_request_access,
     }

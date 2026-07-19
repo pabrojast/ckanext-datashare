@@ -1,0 +1,57 @@
+{% extends 'page.html' %}
+
+{% block subtitle %}{{ _('Data access requests') }}{% endblock %}
+
+{% block breadcrumb_content %}
+  <li class="active">{{ _('Data access requests') }}</li>
+{% endblock %}
+
+{% block primary_content %}
+  <article class="module">
+    <div class="module-content">
+      <h1 class="page-heading"><i class="fa fa-key"></i> {{ _('Data access requests') }}</h1>
+      <p class="text-muted">
+        {{ _('People asking for access to gated datasets of the organizations you manage. '
+             'Approving adds the requester as a dataset collaborator with view access.') }}
+      </p>
+
+      {% if requests %}
+        <table class="table table-striped table-bordered">
+          <thead>
+            <tr>
+              <th>{{ _('Dataset') }}</th>
+              <th>{{ _('Requested by') }}</th>
+              <th>{{ _('Message') }}</th>
+              <th>{{ _('Date') }}</th>
+              <th>{{ _('Decision') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for req in requests %}
+              <tr>
+                <td><a href="{{ h.url_for('dataset.read', id=req.package_name) }}">{{ req.package_title }}</a></td>
+                <td><a href="{{ h.url_for('user.read', id=req.user_name) }}">{{ req.user_display_name }}</a></td>
+                <td>{{ req.message or '—' }}</td>
+                <td>{{ h.render_datetime(req.created_at, with_hours=True) }}</td>
+                <td>
+                  <form method="post" action="{{ h.url_for('datashare.access_requests') }}" class="form-inline" style="display:inline">
+                    <input type="hidden" name="request_id" value="{{ req.id }}"/>
+                    <input type="text" name="note" class="form-control input-sm" placeholder="{{ _('Note (optional)') }}" style="max-width:160px"/>
+                    <button class="btn btn-success btn-sm" type="submit" name="decision" value="approve">
+                      <i class="fa fa-check"></i> {{ _('Approve') }}
+                    </button>
+                    <button class="btn btn-danger btn-sm" type="submit" name="decision" value="reject">
+                      <i class="fa fa-times"></i> {{ _('Reject') }}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="empty">{{ _('No pending access requests.') }}</p>
+      {% endif %}
+    </div>
+  </article>
+{% endblock %}

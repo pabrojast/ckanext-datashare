@@ -57,10 +57,31 @@ datashare_grant_table = Table(
                      name='uq_datashare_grant_pkg_grantee'),
 )
 
-_ALL_TABLES = [datashare_grant_table]
+REQUEST_PENDING = 'pending'
+REQUEST_APPROVED = 'approved'
+REQUEST_REJECTED = 'rejected'
+
+datashare_access_request_table = Table(
+    'datashare_access_request', metadata,
+    Column('id', types.UnicodeText, primary_key=True, default=make_uuid),
+    Column('package_id', types.UnicodeText, nullable=False, index=True),
+    Column('user_id', types.UnicodeText, nullable=False, index=True),
+    Column('message', types.Text, default=u''),
+    Column('status', types.UnicodeText, index=True, default=REQUEST_PENDING),
+    Column('decided_by', types.UnicodeText),
+    Column('decided_at', types.DateTime),
+    Column('decision_note', types.Text, default=u''),
+    Column('created_at', types.DateTime, default=_utcnow),
+)
+
+_ALL_TABLES = [datashare_grant_table, datashare_access_request_table]
 
 
 class DatashareGrant(DomainObject):
+    pass
+
+
+class DatashareAccessRequest(DomainObject):
     pass
 
 
@@ -72,6 +93,7 @@ def ensure_mappers():
     if _mapped:
         return
     mapper(DatashareGrant, datashare_grant_table)
+    mapper(DatashareAccessRequest, datashare_access_request_table)
     _mapped = True
 
 
@@ -181,6 +203,129 @@ def granted_package_ids_for_user(user_id):
         {'uid': user_id},
     ).fetchall()
     return [row[0] for row in rows]
+
+
+# ---------------------------------------------------------------------------
+# Access-request helpers (same no-commit convention)
+# ---------------------------------------------------------------------------
+
+def get_request(request_id):
+    ensure_mappers()
+    if not request_id:
+        return None
+    return Session.query(DatashareAccessRequest).get(request_id)
+
+
+def pending_request_for(package_id, user_id):
+    ensure_mappers()
+    return (
+        Session.query(DatashareAccessRequest)
+        .filter(DatashareAccessRequest.package_id == package_id)
+        .filter(DatashareAccessRequest.user_id == user_id)
+        .filter(DatashareAccessRequest.status == REQUEST_PENDING)
+        .first()
+    )
+
+
+def create_access_request(package_id, user_id, message):
+    ensure_mappers()
+    req = DatashareAccessRequest()
+    req.package_id = package_id
+    req.user_id = user_id
+    req.message = message or u''
+    req.status = REQUEST_PENDING
+    Session.add(req)
+    return req
+
+
+def managed_org_ids(user_id):
+    """Org/group ids where the user is an active admin or editor."""
+    if not user_id:
+        return []
+    rows = Session.execute(
+        sa.text(
+            "SELECT m.group_id FROM member m "
+            "WHERE m.table_name = 'user' AND m.state = 'active' "
+            "AND m.table_id = :uid AND m.capacity IN ('admin', 'editor')"
+        ),
+        {'uid': user_id},
+    ).fetchall()
+    return [row[0] for row in rows]
+
+
+# Raw-SQL join with the core package table (not the ORM: model.Package maps
+# Postgres-only columns like JSONB plugin_data, which would also make the
+# SQLite behavioural tests impossible). Bound parameters only.
+
+def pending_requests(owner_org_ids=None, limit=100):
+    """Pending requests as dicts (+ package name/title), newest first.
+
+    ``owner_org_ids=None`` means every dataset (sysadmin scope); an empty
+    list means no scope at all.
+    """
+    if owner_org_ids is not None and not owner_org_ids:
+        return []
+    sql = (
+        "SELECT r.id, r.package_id, r.user_id, r.message, r.created_at, "
+        "p.name, p.title FROM datashare_access_request r "
+        "JOIN package p ON p.id = r.package_id "
+        "WHERE r.status = 'pending' AND p.state = 'active'"
+    )
+    params = {'limit': limit}
+    if owner_org_ids is not None:
+        sql += " AND p.owner_org IN :orgs"
+        params['orgs'] = list(owner_org_ids)
+    sql += " ORDER BY r.created_at DESC LIMIT :limit"
+    stmt = sa.text(sql)
+    if owner_org_ids is not None:
+        stmt = stmt.bindparams(sa.bindparam('orgs', expanding=True))
+    rows = Session.execute(stmt, params).fetchall()
+    return [{
+        'id': row[0],
+        'package_id': row[1],
+        'user_id': row[2],
+        'message': row[3],
+        'created_at': row[4].isoformat() if hasattr(row[4], 'isoformat')
+        else row[4],
+        'package_name': row[5],
+        'package_title': row[6],
+    } for row in rows]
+
+
+def count_pending_requests(owner_org_ids=None):
+    if owner_org_ids is not None and not owner_org_ids:
+        return 0
+    sql = (
+        "SELECT COUNT(*) FROM datashare_access_request r "
+        "JOIN package p ON p.id = r.package_id "
+        "WHERE r.status = 'pending' AND p.state = 'active'"
+    )
+    params = {}
+    if owner_org_ids is not None:
+        sql += " AND p.owner_org IN :orgs"
+        params['orgs'] = list(owner_org_ids)
+    stmt = sa.text(sql)
+    if owner_org_ids is not None:
+        stmt = stmt.bindparams(sa.bindparam('orgs', expanding=True))
+    return Session.execute(stmt, params).scalar() or 0
+
+
+def request_dictize(req):
+    if req is None:
+        return None
+    return {
+        'id': req.id,
+        'package_id': req.package_id,
+        'user_id': req.user_id,
+        'message': req.message,
+        'status': req.status,
+        'decided_by': req.decided_by,
+        'decided_at': (req.decided_at.isoformat()
+                       if req.decided_at else None),
+        'decision_note': req.decision_note,
+        'created_at': (req.created_at.isoformat()
+                       if req.created_at else None),
+    }
 
 
 def grant_dictize(grant):

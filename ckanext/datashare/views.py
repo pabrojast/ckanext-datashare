@@ -115,6 +115,88 @@ def shared(id):
     })
 
 
+def datastore_dump(resource_id):
+    """Gate the DataStore bulk-dump endpoint (a full-download side door).
+
+    Previews keep working (they use datastore_search), only the dump is
+    gated. Delegates to the datastore plugin's own view when allowed.
+    """
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': tk.g.user,
+        'auth_user_obj': tk.g.userobj,
+    }
+    try:
+        tk.check_access('datashare_resource_download', context,
+                        {'id': resource_id})
+    except tk.ObjectNotFound:
+        return tk.abort(404, tk._('Resource not found'))
+    except tk.NotAuthorized:
+        return tk.abort(
+            403, tk._('Downloading this resource is not permitted by its '
+                      'data sharing level.'))
+    from ckanext.datastore.blueprint import dump as datastore_dump_view
+    return datastore_dump_view(resource_id)
+
+
+def request_access(id):
+    """POST target for the 'Request access' button on gated datasets."""
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': tk.g.user,
+        'auth_user_obj': tk.g.userobj,
+    }
+    try:
+        result = tk.get_action('datashare_access_request_create')(
+            context, {'package_id': id,
+                      'message': tk.request.form.get('message', '')})
+        tk.h.flash_success(
+            tk._('Access request sent. The data provider will review it.'))
+    except tk.NotAuthorized:
+        tk.h.flash_error(tk._('You must be logged in to request access'))
+    except tk.ValidationError as e:
+        tk.h.flash_error(e.error_summary or tk._('Invalid request'))
+    except tk.ObjectNotFound:
+        return tk.abort(404, tk._('Dataset not found'))
+    return tk.h.redirect_to('dataset.read', id=id)
+
+
+def access_requests():
+    """Review queue for data-access requests (GET list / POST decision)."""
+    context = {
+        'model': model,
+        'session': model.Session,
+        'user': tk.g.user,
+        'auth_user_obj': tk.g.userobj,
+    }
+    if not tk.g.userobj:
+        return tk.abort(404, tk._('Not found'))
+
+    if tk.request.method == 'POST':
+        form = tk.request.form
+        try:
+            result = tk.get_action('datashare_access_request_process')(
+                context, {'id': form.get('request_id'),
+                          'decision': form.get('decision'),
+                          'note': form.get('note', '')})
+            tk.h.flash_success(
+                tk._('Request approved') if result['status'] == 'approved'
+                else tk._('Request rejected'))
+        except (tk.ValidationError, tk.ObjectNotFound) as e:
+            tk.h.flash_error(getattr(e, 'error_summary', None)
+                             or tk._('Invalid request'))
+        except tk.NotAuthorized:
+            tk.h.flash_error(
+                tk._('Not authorized to process this request'))
+        return tk.h.redirect_to('datashare.access_requests')
+
+    requests = tk.get_action('datashare_access_request_list')(context, {})
+    return tk.render('datashare/requests.html',
+                     extra_vars={'requests': requests})
+
+
 datashare_bp.add_url_rule(
     '/dataset/<id>/resource/<resource_id>/download',
     view_func=download, methods=['GET'])
@@ -123,6 +205,15 @@ datashare_bp.add_url_rule(
     view_func=download, methods=['GET'])
 datashare_bp.add_url_rule(
     '/dataset/<id>/shared', view_func=shared, methods=['GET', 'POST'])
+datashare_bp.add_url_rule(
+    '/datastore/dump/<resource_id>', view_func=datastore_dump,
+    methods=['GET'])
+datashare_bp.add_url_rule(
+    '/dataset/<id>/request-access', view_func=request_access,
+    methods=['POST'])
+datashare_bp.add_url_rule(
+    '/datashare/requests', view_func=access_requests,
+    methods=['GET', 'POST'], endpoint='access_requests')
 
 
 def get_blueprints():

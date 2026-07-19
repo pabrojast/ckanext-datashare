@@ -33,7 +33,10 @@ def test_expected_actions_registered(plugin):
     actions = plugin.get_actions()
     for name in ('datashare_grant_create', 'datashare_grant_delete',
                  'datashare_grant_list', 'datashare_access_check',
-                 'resource_view_list'):
+                 'resource_view_list', 'datashare_access_request_create',
+                 'datashare_access_request_list',
+                 'datashare_access_request_count',
+                 'datashare_access_request_process'):
         assert name in actions
     # resource_view_list wraps core, it must be chained
     assert getattr(actions['resource_view_list'], 'chained_action', False)
