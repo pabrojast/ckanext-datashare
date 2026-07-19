@@ -115,12 +115,34 @@ def shared(id):
     })
 
 
-def datastore_dump(resource_id):
-    """Gate the DataStore bulk-dump endpoint (a full-download side door).
+# Endpoints that hand out the FULL file/table and must honor can_download.
+# Gated via before_app_request (below) instead of duplicate url rules:
+# identical-rule ties between extension blueprints depend on the (fragile,
+# non-config-order) PluginImplementations iteration - e.g. datastore always
+# registers first and would always win a tie on /datastore/dump.
+_GATED_ENDPOINTS = {
+    'datastore.dump',                    # DataStore bulk export
+    'cloudresource.resource_download',   # cloudstorage download view
+    'dataset_resource.download',         # core download view
+    'resource.download',                 # core download (legacy name)
+}
 
-    Previews keep working (they use datastore_search), only the dump is
-    gated. Delegates to the datastore plugin's own view when allowed.
+
+@datashare_bp.before_app_request
+def _gate_bulk_download_endpoints():
+    """App-wide belt-and-braces gate for bulk-download endpoints.
+
+    Runs after CKAN's identify_user (app-level before_request hooks are
+    registered earlier), so g.user/g.userobj are populated. Returning None
+    lets the real view continue; previews are unaffected (they use
+    datastore_search, not these endpoints).
     """
+    from flask import request
+    if request.endpoint not in _GATED_ENDPOINTS:
+        return None
+    resource_id = (request.view_args or {}).get('resource_id')
+    if not resource_id:
+        return None
     context = {
         'model': model,
         'session': model.Session,
@@ -130,14 +152,13 @@ def datastore_dump(resource_id):
     try:
         tk.check_access('datashare_resource_download', context,
                         {'id': resource_id})
-    except tk.ObjectNotFound:
-        return tk.abort(404, tk._('Resource not found'))
     except tk.NotAuthorized:
         return tk.abort(
             403, tk._('Downloading this resource is not permitted by its '
                       'data sharing level.'))
-    from ckanext.datastore.blueprint import dump as datastore_dump_view
-    return datastore_dump_view(resource_id)
+    except tk.ObjectNotFound:
+        return None  # let the real view produce its own 404
+    return None
 
 
 def request_access(id):
@@ -205,9 +226,6 @@ datashare_bp.add_url_rule(
     view_func=download, methods=['GET'])
 datashare_bp.add_url_rule(
     '/dataset/<id>/shared', view_func=shared, methods=['GET', 'POST'])
-datashare_bp.add_url_rule(
-    '/datastore/dump/<resource_id>', view_func=datastore_dump,
-    methods=['GET'])
 datashare_bp.add_url_rule(
     '/dataset/<id>/request-access', view_func=request_access,
     methods=['POST'])
