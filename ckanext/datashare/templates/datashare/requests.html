@@ -9,11 +9,18 @@
 {% block primary_content %}
   <article class="module">
     <div class="module-content">
-      <h1 class="page-heading"><i class="fa fa-key"></i> {{ _('Data access requests') }}</h1>
-      <p class="text-muted">
-        {{ _('People asking for access to gated datasets of the organizations you manage. '
-             'Approving adds the requester as a dataset collaborator with view access.') }}
-      </p>
+      {# Same dashboard header used by Membership/Initiative Requests
+         (classes ship globally in the theme's people-orgs.css) #}
+      <div class="membership-dashboard-header">
+        <div class="membership-dashboard-header-icon">
+          <i class="fa fa-key"></i>
+        </div>
+        <div class="membership-dashboard-header-text">
+          <h2>{{ _('Data access requests') }}</h2>
+          <p>{{ _('People asking for access to gated datasets of the organizations you manage. '
+                  'Approving adds the requester as a dataset collaborator with view access.') }}</p>
+        </div>
+      </div>
 
       {% if requests %}
         <table class="table table-striped table-bordered">
