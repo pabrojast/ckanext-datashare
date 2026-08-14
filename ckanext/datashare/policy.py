@@ -107,3 +107,17 @@ def is_hidden_from_public(level, restricted_behavior=BEHAVIOR_FINDABLE):
     label for unauthorized users (drives labels.py)."""
     return not access_for(level, False,
                           restricted_behavior=restricted_behavior).can_discover
+
+
+def private_for_level(value):
+    """The core CKAN ``private`` flag implied by a datashare level.
+
+    The dataset form has no Public/Private select any more: ``access_level``
+    is the single visibility control, so ``private`` is derived from it.
+
+    ``confidential`` is the only level that means "not published" in CKAN's
+    own terms - invisible in search and unreadable outside the owner org,
+    which is exactly what ``private=True`` does. Every other level leaves the
+    dataset discoverable and gates the resources instead.
+    """
+    return normalize_level(value) == LEVEL_CONFIDENTIAL

@@ -18,6 +18,100 @@ def init_db():
 
 
 # ---------------------------------------------------------------------------
+# Backfill: legacy private datasets predate the access_level control
+# ---------------------------------------------------------------------------
+
+def _active_level(pkg):
+    """The dataset's stored access_level, ignoring soft-deleted extras."""
+    from ckanext.datashare import core
+    extra = pkg._extras.get(core.FIELD_NAME)
+    if extra is None or extra.state != 'active':
+        return None
+    return (extra.value or '').strip() or None
+
+
+@datashare.command('backfill-access-level',
+                   short_help='Stamp legacy private datasets as confidential')
+@click.option('--dry-run', is_flag=True, help='Report only; write nothing')
+@click.option('--no-reindex', is_flag=True,
+              help='Skip the Solr reindex (rebuild the index yourself)')
+def backfill_access_level(dry_run, no_reindex):
+    """Give every legacy private dataset the 'confidential' sharing level.
+
+    The Public/Private select is gone from the dataset form: ``private`` is
+    now derived from ``access_level``. Datasets made private before that
+    change carry no level, so the next time somebody edited one it would read
+    as 'public' and be silently published. Stamping them 'confidential'
+    preserves exactly the visibility they have today.
+
+    Idempotent: datasets that already carry a level are left alone.
+    """
+    import ckan.model as model
+    from ckanext.datashare import core
+
+    pkgs = (model.Session.query(model.Package)
+            .filter(model.Package.state == 'active')
+            .filter(model.Package.private.is_(True))
+            .order_by(model.Package.name).all())
+
+    todo = [p for p in pkgs if _active_level(p) is None]
+    conflicts = [(p, _active_level(p)) for p in pkgs
+                 if _active_level(p) not in (None, core.LEVEL_CONFIDENTIAL)]
+
+    click.echo('%d active private dataset(s); %d without access_level'
+               % (len(pkgs), len(todo)))
+    for pkg, level in conflicts:
+        click.secho('  CONFLICT %s: private=True but access_level=%s -> it '
+                    'will become PUBLIC on its next edit' % (pkg.name, level),
+                    fg='yellow')
+
+    if dry_run:
+        for pkg in todo:
+            click.echo('  would set confidential: %s' % pkg.name)
+        click.secho('dry run: nothing written', fg='yellow')
+        return
+
+    if not todo:
+        click.secho('nothing to do', fg='green')
+        return
+
+    for pkg in todo:
+        extra = pkg._extras.get(core.FIELD_NAME)
+        if extra is None:
+            pkg.extras[core.FIELD_NAME] = core.LEVEL_CONFIDENTIAL
+        else:
+            # A soft-deleted row: revive it instead of inserting a duplicate
+            # (only the (package, key) pair is unique).
+            extra.value = core.LEVEL_CONFIDENTIAL
+            extra.state = 'active'
+    model.Session.commit()
+    click.secho('%d dataset(s) stamped confidential' % len(todo), fg='green')
+
+    if no_reindex:
+        click.secho('reindex skipped: run `ckan search-index rebuild` or '
+                    'package_show will keep serving the cached dict without '
+                    'access_level', fg='yellow')
+        return
+
+    # Not optional in practice: package_show serves the validated_data_dict
+    # cached in Solr, so without a reindex the level would stay invisible to
+    # the derivation above.
+    import ckan.lib.search as search
+    failed = 0
+    for pkg in todo:
+        try:
+            search.rebuild(pkg.id)
+        except Exception as exc:
+            failed += 1
+            click.secho('  reindex failed for %s: %s' % (pkg.name, exc),
+                        fg='yellow')
+    click.secho('reindexed %d dataset(s)%s'
+                % (len(todo) - failed,
+                   '' if not failed else ', %d failed' % failed),
+                fg='green' if not failed else 'yellow')
+
+
+# ---------------------------------------------------------------------------
 # Gulf Country Platform demo seed (idempotent - safe to re-run)
 # ---------------------------------------------------------------------------
 

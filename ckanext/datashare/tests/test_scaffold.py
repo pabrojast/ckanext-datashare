@@ -36,10 +36,21 @@ def test_expected_actions_registered(plugin):
                  'resource_view_list', 'datashare_access_request_create',
                  'datashare_access_request_list',
                  'datashare_access_request_count',
-                 'datashare_access_request_process'):
+                 'datashare_access_request_process',
+                 'package_create', 'package_update'):
         assert name in actions
-    # resource_view_list wraps core, it must be chained
-    assert getattr(actions['resource_view_list'], 'chained_action', False)
+    # These wrap core actions, so they must be chained (schemingdcat already
+    # chains package_create/package_update; a plain override would clash).
+    for name in ('resource_view_list', 'package_create', 'package_update'):
+        assert getattr(actions[name], 'chained_action', False), name
+
+
+def test_backfill_command_registered(plugin):
+    commands = plugin.get_commands()
+    names = set()
+    for group in commands:
+        names.update(getattr(group, 'commands', {}))
+    assert 'backfill-access-level' in names
 
 
 def test_download_blueprint_rules(plugin):

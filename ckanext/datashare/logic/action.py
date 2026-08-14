@@ -159,6 +159,66 @@ def resource_view_list(original_action, context, data_dict):
 resource_view_list.auth_audit_exempt = True
 
 
+# ---------------------------------------------------------------------------
+# `private` is derived from the sharing level
+# ---------------------------------------------------------------------------
+
+def _owner_org_present(data_dict):
+    """Will the saved dataset have an organization?
+
+    ``datasets_with_no_organization_cannot_be_private`` raises a
+    ValidationError on a key the scheming form cannot render (errors.html only
+    iterates schema fields), so we never set private=True without an org.
+    """
+    if data_dict.get('owner_org') or data_dict.get('group_id'):
+        return True
+    pkg_id = data_dict.get('id')
+    if not pkg_id:
+        return False
+    import ckan.model as model
+    pkg = model.Package.get(pkg_id)
+    return bool(pkg and pkg.owner_org)
+
+
+def _sync_private_with_level(data_dict):
+    """Derive the core ``private`` flag from ``access_level``.
+
+    The dataset form no longer posts ``private`` - ``access_level`` is the
+    single visibility control - so we compute it here, right before CKAN
+    validates the dict.
+
+    Only acts when the caller actually sends the field: partial
+    ``package_patch`` calls, harvested datasets and dataset types without the
+    field keep whatever ``private`` they already have. ``core.raw_level``
+    reads both the top level and ``extras`` because this wrapper may run
+    before schemingdcat promotes schema fields out of ``extras``.
+    """
+    if not isinstance(data_dict, dict):
+        return
+    raw = core.raw_level(data_dict)
+    if raw is None:
+        return
+    private = core.policy.private_for_level(raw)
+    if private and not _owner_org_present(data_dict):
+        log.warning("datashare: confidential dataset %r has no organization; "
+                    "leaving `private` untouched",
+                    data_dict.get('name') or data_dict.get('id'))
+        return
+    data_dict['private'] = private
+
+
+@tk.chained_action
+def package_create(original_action, context, data_dict):
+    _sync_private_with_level(data_dict)
+    return original_action(context, data_dict)
+
+
+@tk.chained_action
+def package_update(original_action, context, data_dict):
+    _sync_private_with_level(data_dict)
+    return original_action(context, data_dict)
+
+
 @tk.side_effect_free
 def datashare_access_check(context, data_dict):
     """What can the current user do with this dataset?
@@ -351,4 +411,8 @@ def get_actions():
         'datashare_grant_list': datashare_grant_list,
         'datashare_access_check': datashare_access_check,
         'resource_view_list': resource_view_list,
+        # `private` follows `access_level`. package_patch needs no wrapper of
+        # its own: CKAN implements it on top of package_update.
+        'package_create': package_create,
+        'package_update': package_update,
     }

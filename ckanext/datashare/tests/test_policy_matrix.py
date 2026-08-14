@@ -11,6 +11,7 @@ from ckanext.datashare.policy import (
     access_for,
     normalize_level,
     is_hidden_from_public,
+    private_for_level,
     LEVEL_PUBLIC,
     LEVEL_CONFIDENTIAL,
     LEVEL_FINDABLE,
@@ -105,3 +106,24 @@ def test_hidden_from_public():
                                      restricted_behavior=BEHAVIOR_FINDABLE)
     assert is_hidden_from_public(LEVEL_RESTRICTED,
                                  restricted_behavior=BEHAVIOR_HIDDEN)
+
+
+@pytest.mark.parametrize('raw,expected', [
+    (LEVEL_CONFIDENTIAL, True),
+    (' confidential ', True),
+    (LEVEL_PUBLIC, False),
+    (LEVEL_FINDABLE, False),
+    (LEVEL_VIEWABLE, False),
+    (LEVEL_RESTRICTED, False),
+    ('', False),
+    (None, False),
+    ('some-future-level', False),
+])
+def test_private_for_level(raw, expected):
+    """`private` is derived from the level: only 'confidential' means private.
+
+    'restricted' stays private=False even under BEHAVIOR_HIDDEN: hiding it is
+    the permission labels' job, and flipping `private` would also drop it out
+    of API searches for the orgs it was explicitly shared with.
+    """
+    assert private_for_level(raw) is expected
