@@ -146,6 +146,19 @@ def resource_view_list(original_action, context, data_dict):
     return [v for v in views if v.get('view_type') in allowed]
 
 
+# CKAN sets auth_audit_exempt automatically on FLAT plugin actions, but for a
+# chained action it only copies the attributes present on our own function.
+# Without it, any caller that reuses one context across several
+# resource_view_list calls -- ckanext/activity/views.py::package_history loops
+# over every resource with a single shared context -- can leave a stale entry
+# on context['__auth_audit'] and trip
+# "Action function resource_view_list did not call its auth function",
+# which renders /dataset/<name>/history/<id> as a 500. The real authorization
+# still happens: the wrapped core action calls check_access itself, and the
+# access decision below is enforced regardless.
+resource_view_list.auth_audit_exempt = True
+
+
 @tk.side_effect_free
 def datashare_access_check(context, data_dict):
     """What can the current user do with this dataset?
