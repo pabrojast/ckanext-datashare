@@ -6,37 +6,24 @@
       {% snippet 'package/snippets/datashare_banner.html', pkg=pkg %}
     {% endif %}
 #}
-{% set access = h.datashare_access(pkg) %}
-{% if access and access.level != 'public' %}
+{% set access = access if access is defined else h.datashare_access(pkg) %}
+{# Los privados antiguos conservan la insignia Private de la ficha. #}
+{% if access and not (access.level == 'public' and pkg.private) %}
   {% set level = access.level %}
-  <div class="alert {{ 'alert-info' if access.is_authorized else 'alert-warning' }} datashare-banner datashare-banner-{{ level }}">
-    <i class="fa fa-{{ {'confidential': 'user-shield', 'findable': 'eye-slash', 'viewable': 'download', 'restricted': 'lock'}.get(level, 'lock') }}"></i>
-    {% if level == 'confidential' %}
-      <strong>{{ _('Confidential dataset.') }}</strong>
-      {{ _('This dataset is exclusively managed by the data provider.') }}
-    {% elif level == 'findable' %}
-      <strong>{{ _('Metadata only.') }}</strong>
-      {% if access.is_authorized %}
-        {{ _('The data is only accessible to authorized members; you have access.') }}
-      {% else %}
-        {{ _('You can browse this dataset\'s description, but its data is not accessible.') }}
-      {% endif %}
-    {% elif level == 'viewable' %}
-      <strong>{{ _('View only.') }}</strong>
-      {% if access.is_authorized %}
-        {{ _('Downloads are limited to authorized members; you have access.') }}
-      {% else %}
-        {{ _('You can preview the data online, but downloading is not permitted.') }}
-      {% endif %}
-    {% elif level == 'restricted' %}
-      <strong>{{ _('Restricted dataset.') }}</strong>
-      {% if access.is_authorized %}
-        {{ _('Shared with selected organizations; you have access.') }}
-      {% else %}
-        {{ _('Access is limited to selected organizations.') }}
-      {% endif %}
-    {% else %}
-      <strong>{{ _('Restricted access dataset.') }}</strong>
+  <div class="alert {{ 'alert-info' if level == 'public' or access.is_authorized else 'alert-warning' }} datashare-banner datashare-banner-{{ level }}">
+    <i class="fa fa-{{ {'public': 'globe', 'confidential': 'user-shield', 'findable': 'eye-slash', 'viewable': 'eye', 'restricted': 'lock'}.get(level, 'lock') }}"></i>
+    <strong>{{ h.datashare_access_level_label(pkg) }}</strong>
+    {% if access.is_authorized and level in ('findable', 'viewable', 'restricted') %}
+      <div class="datashare-authorized-note">
+        {% if level == 'findable' %}
+          {{ _('The data is only accessible to authorized members; you have access.') }}
+        {% elif level == 'viewable' %}
+          {{ _('Downloads are limited to authorized members; you have access.') }}
+        {% else %}
+          {{ _('Shared with selected organizations; you have access.') }}
+        {% endif %}
+      </div>
+    {% elif level not in ('public', 'confidential', 'findable', 'viewable', 'restricted') %}
       {{ _('Data access is limited for this dataset.') }}
     {% endif %}
 

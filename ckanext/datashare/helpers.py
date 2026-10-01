@@ -55,6 +55,16 @@ def datashare_access_level(pkg):
     return core.dataset_level(pkg)
 
 
+def datashare_access_level_label(pkg):
+    """Use the form's label and language resolution on the dataset page."""
+    label = LEVEL_LABELS.get(core.dataset_level(pkg))
+    if label is None:
+        return tk._('Restricted access dataset.')
+    if 'scheming_language_text' in tk.h:
+        return tk.h.scheming_language_text(label)
+    return label.get(tk.h.lang(), label['en'])
+
+
 def datashare_access(pkg):
     """Full AccessResult dict for the current user (for templates)."""
     if not pkg:
@@ -126,6 +136,7 @@ def get_helpers():
     return {
         'datashare_access_level_choices': datashare_access_level_choices,
         'datashare_access_level': datashare_access_level,
+        'datashare_access_level_label': datashare_access_level_label,
         'datashare_access': datashare_access,
         'datashare_can_view_resources': datashare_can_view_resources,
         'datashare_can_download': datashare_can_download,
